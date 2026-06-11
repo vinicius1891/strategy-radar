@@ -2,6 +2,7 @@
 // DATABASE_URL definido => Prisma/PostgreSQL; ausente => memoria (modo demo).
 
 import { Global, Logger, Module, Provider } from '@nestjs/common';
+import { DbSeederService } from './db-seeder.service';
 import {
   MemoryAssetsRepository,
   MemoryStrategiesRepository,
@@ -20,6 +21,7 @@ const useDatabase = Boolean(process.env.DATABASE_URL);
 const providers: Provider[] = useDatabase
   ? [
       PrismaService,
+      DbSeederService, // garante as estrategias/ativos no banco a cada boot
       { provide: USERS_REPOSITORY, useClass: PrismaUsersRepository },
       { provide: ASSETS_REPOSITORY, useClass: PrismaAssetsRepository },
       { provide: STRATEGIES_REPOSITORY, useClass: PrismaStrategiesRepository },
