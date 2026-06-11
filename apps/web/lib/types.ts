@@ -83,7 +83,7 @@ export interface BacktestTrade {
   pnl: number;
   pnlPct: number;
   bars: number;
-  exitReason: 'stop' | 'target' | 'exit_rule' | 'end_of_data';
+  exitReason: 'stop' | 'target' | 'exit_rule' | 'time' | 'end_of_data';
 }
 
 export interface BacktestResponse {

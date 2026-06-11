@@ -47,11 +47,12 @@ export class YahooProvider implements MarketDataProvider {
   private readonly logger = new Logger(YahooProvider.name);
   private cookie: string | null = null;
 
-  // PETR4/BOVA11 etc. (4 letras + 1-2 digitos) sao B3 e precisam de ".SA";
-  // simbolos ja qualificados (AAPL, PETR4.SA, ^BVSP) passam sem alteracao
+  // PETR4/BOVA11/B3SA3 etc. (4 caracteres iniciados por letra + 1-2 digitos)
+  // sao B3 e precisam de ".SA"; simbolos ja qualificados (AAPL, PETR4.SA,
+  // ^BVSP) passam sem alteracao
   private toSymbol(ticker: string): string {
     const upper = ticker.toUpperCase();
-    return /^[A-Z]{4}\d{1,2}$/.test(upper) ? `${upper}.SA` : upper;
+    return /^[A-Z][A-Z0-9]{3}\d{1,2}$/.test(upper) ? `${upper}.SA` : upper;
   }
 
   private headers(): Record<string, string> {

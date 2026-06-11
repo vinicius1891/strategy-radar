@@ -31,7 +31,16 @@ export type IndicatorName =
   | 'DONCHIAN_LOWER'
   | 'HIGHEST_HIGH'
   | 'LOWEST_LOW'
-  | 'VOLUME_SMA';
+  | 'HIGHEST_CLOSE'
+  | 'LOWEST_CLOSE'
+  | 'VOLUME_SMA'
+  | 'IBS'
+  | 'ROC'
+  | 'STOCH_K'
+  | 'STOCH_D'
+  | 'KELTNER_UPPER'
+  | 'KELTNER_MIDDLE'
+  | 'KELTNER_LOWER';
 
 // Valor numerico literal ou referencia a um parametro nomeado da estrategia
 export type ParamValue = number | { param: string };
@@ -65,11 +74,17 @@ export interface StrategyLevels {
 
 export interface StrategyConfig {
   direction: 'long';
+  // Incrementar ao alterar regras/params padrao: o seeder sobrescreve a
+  // config persistida quando a versao da definicao difere da armazenada
+  version?: number;
   // Minimo de candles necessarios antes da primeira avaliacao
   warmup: number;
   entry: Condition;
   exit?: Condition;
   invalidation?: Condition;
+  // Saida por tempo: encerra a posicao no fechamento apos N candles
+  // (essencial em mean reversion — "se nao resolveu, sai")
+  maxBars?: number;
   levels: StrategyLevels;
   params: Record<string, number>;
   indicatorsUsed: string[];
@@ -112,7 +127,7 @@ export interface BacktestTrade {
   pnl: number;
   pnlPct: number;
   bars: number;
-  exitReason: 'stop' | 'target' | 'exit_rule' | 'end_of_data';
+  exitReason: 'stop' | 'target' | 'exit_rule' | 'time' | 'end_of_data';
 }
 
 export interface EquityPoint {

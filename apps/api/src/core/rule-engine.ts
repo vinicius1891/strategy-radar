@@ -83,8 +83,26 @@ export class EvaluationContext {
           return ind.highest(this.priceSeries('high'), p('period', 20));
         case 'LOWEST_LOW':
           return ind.lowest(this.priceSeries('low'), p('period', 20));
+        case 'HIGHEST_CLOSE':
+          return ind.highest(closes, p('period', 20));
+        case 'LOWEST_CLOSE':
+          return ind.lowest(closes, p('period', 20));
         case 'VOLUME_SMA':
           return ind.sma(this.priceSeries('volume'), p('period', 20));
+        case 'IBS':
+          return ind.ibs(this.candles);
+        case 'ROC':
+          return ind.roc(closes, p('period', 63));
+        case 'STOCH_K':
+          return ind.stochastic(this.candles, p('kPeriod', 14), p('kSmooth', 3), p('dPeriod', 3)).k;
+        case 'STOCH_D':
+          return ind.stochastic(this.candles, p('kPeriod', 14), p('kSmooth', 3), p('dPeriod', 3)).d;
+        case 'KELTNER_UPPER':
+          return ind.keltner(this.candles, p('period', 20), p('mult', 1.5)).upper;
+        case 'KELTNER_MIDDLE':
+          return ind.keltner(this.candles, p('period', 20), p('mult', 1.5)).middle;
+        case 'KELTNER_LOWER':
+          return ind.keltner(this.candles, p('period', 20), p('mult', 1.5)).lower;
         default:
           throw new Error(`Indicador desconhecido: ${name}`);
       }

@@ -187,3 +187,62 @@ export function donchian(
   const middle = upper.map((u, i) => (u + lower[i]) / 2);
   return { upper, middle, lower };
 }
+
+// Internal Bar Strength: posicao do fechamento dentro do range do candle (0-1)
+export function ibs(candles: Candle[]): number[] {
+  return candles.map((c) => {
+    const range = c.high - c.low;
+    return range === 0 ? 0.5 : (c.close - c.low) / range;
+  });
+}
+
+// Rate of Change percentual
+export function roc(values: number[], period: number): number[] {
+  const out = nanArray(values.length);
+  for (let i = period; i < values.length; i++) {
+    if (values[i - period] !== 0) out[i] = (values[i] / values[i - period] - 1) * 100;
+  }
+  return out;
+}
+
+// Estocastico lento: %K suavizado e %D (media do %K)
+export function stochastic(
+  candles: Candle[],
+  kPeriod: number,
+  kSmooth: number,
+  dPeriod: number,
+): { k: number[]; d: number[] } {
+  const hh = highest(candles.map((c) => c.high), kPeriod);
+  const ll = lowest(candles.map((c) => c.low), kPeriod);
+  const rawK = candles.map((c, i) => {
+    const range = hh[i] - ll[i];
+    if (Number.isNaN(range)) return NaN;
+    return range === 0 ? 50 : ((c.close - ll[i]) / range) * 100;
+  });
+  const k = smaIgnoringLeadingNaN(rawK, kSmooth);
+  const d = smaIgnoringLeadingNaN(k, dPeriod);
+  return { k, d };
+}
+
+// Canais de Keltner: EMA central +/- mult * ATR
+export function keltner(
+  candles: Candle[],
+  period: number,
+  mult: number,
+): { upper: number[]; middle: number[]; lower: number[] } {
+  const middle = ema(candles.map((c) => c.close), period);
+  const atrSeries = atr(candles, period);
+  const upper = middle.map((m, i) => m + mult * atrSeries[i]);
+  const lower = middle.map((m, i) => m - mult * atrSeries[i]);
+  return { upper, middle, lower };
+}
+
+// SMA aplicada a uma serie que comeca com NaN (alinha a saida a serie original)
+function smaIgnoringLeadingNaN(values: number[], period: number): number[] {
+  const out = nanArray(values.length);
+  const firstValid = values.findIndex((v) => !Number.isNaN(v));
+  if (firstValid < 0) return out;
+  const valid = sma(values.slice(firstValid), period);
+  for (let i = 0; i < valid.length; i++) out[firstValid + i] = valid[i];
+  return out;
+}

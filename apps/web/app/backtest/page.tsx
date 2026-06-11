@@ -14,6 +14,7 @@ const EXIT_LABEL: Record<string, string> = {
   stop: 'Stop',
   target: 'Alvo',
   exit_rule: 'Regra de saida',
+  time: 'Tempo maximo',
   end_of_data: 'Fim da serie',
 };
 

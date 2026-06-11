@@ -1,4 +1,4 @@
-// As 10 estrategias de sistema da V1, definidas exclusivamente como objetos
+﻿// As 10 estrategias de sistema da V1, definidas exclusivamente como objetos
 // de configuracao interpretados pelo motor de regras. Nenhuma possui codigo
 // proprio; todos os parametros sao editaveis via campo `params`.
 
@@ -275,7 +275,7 @@ export const SYSTEM_STRATEGIES: StrategyDefinition[] = [
     config: {
       direction: 'long',
       warmup: 60,
-      params: { adxPeriod: 14, adxMin: 25, lookback: 10, stopLookback: 7, targetRR: 2.5 },
+      params: { adxPeriod: 14, adxMin: 28, lookback: 10, stopLookback: 10, targetRR: 2.5 },
       indicatorsUsed: ['ADX', 'PLUS_DI', 'MINUS_DI', 'HIGHEST_HIGH', 'LOWEST_LOW'],
       entry: {
         kind: 'group',
@@ -363,13 +363,22 @@ export const SYSTEM_STRATEGIES: StrategyDefinition[] = [
     timeframes: ['1d'],
     config: {
       direction: 'long',
-      warmup: 40,
-      params: { bbPeriod: 20, bbMult: 2, stopLookback: 5, targetRR: 1.5 },
-      indicatorsUsed: ['BB_LOWER', 'BB_MIDDLE', 'LOWEST_LOW'],
+      version: 2,
+      warmup: 210,
+      params: { bbPeriod: 20, bbMult: 2, trendPeriod: 200, stopLookback: 5, targetRR: 1.5 },
+      indicatorsUsed: ['BB_LOWER', 'BB_MIDDLE', 'SMA', 'LOWEST_LOW'],
       entry: {
         kind: 'group',
         logic: 'AND',
         conditions: [
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: indicator('SMA', { period: p('trendPeriod') }),
+            label: 'Preco acima da MM200',
+            role: 'filter',
+          },
           {
             kind: 'compare',
             op: '<=',
@@ -440,6 +449,269 @@ export const SYSTEM_STRATEGIES: StrategyDefinition[] = [
         stop: expr('-', price('close'), expr('*', param('stopAtrMult'), indicator('ATR', { period: p('atrPeriod') }))),
         target: riskMultipleTarget('targetRR'),
         trigger: indicator('HIGHEST_HIGH', { period: p('lookback') }, 1),
+      },
+    },
+  },
+  // ===== Estrategias com evidencia estatistica documentada (literatura
+  // quantitativa: Connors, George & Hwang, John Carter/TTM) =====
+  {
+    slug: 'double-seven',
+    name: 'Double Seven (Connors)',
+    description:
+      'Fechamento na minima de 7 dias com preco acima da MM200; saida no fechamento na maxima de 7 dias. Win rate historico de ~82% no S&P 500.',
+    timeframes: ['1d'],
+    config: {
+      direction: 'long',
+      version: 1,
+      warmup: 210,
+      params: { lookback: 7, trendPeriod: 200, atrPeriod: 14, stopAtrMult: 3 },
+      indicatorsUsed: ['LOWEST_CLOSE', 'HIGHEST_CLOSE', 'SMA', 'ATR'],
+      entry: {
+        kind: 'group',
+        logic: 'AND',
+        conditions: [
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: indicator('SMA', { period: p('trendPeriod') }),
+            label: 'Preco acima da MM200',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '<=',
+            left: price('close'),
+            right: indicator('LOWEST_CLOSE', { period: p('lookback') }),
+            label: 'Fechamento na minima de 7 dias',
+            role: 'trigger',
+          },
+        ],
+      },
+      exit: {
+        kind: 'compare',
+        op: '>=',
+        left: price('close'),
+        right: indicator('HIGHEST_CLOSE', { period: p('lookback') }),
+        label: 'Fechamento na maxima de 7 dias',
+      },
+      levels: {
+        entry: price('close'),
+        stop: expr('-', price('close'), expr('*', param('stopAtrMult'), indicator('ATR', { period: p('atrPeriod') }))),
+        target: indicator('HIGHEST_CLOSE', { period: p('lookback') }, 1),
+      },
+    },
+  },
+  {
+    slug: 'squeeze-breakout',
+    name: 'Squeeze Breakout (TTM)',
+    description:
+      'Compressao de volatilidade (Bollinger dentro do Keltner) seguida de rompimento da banda superior com volume. Setup de John Carter; ~68% dos disparos geram movimento de 2x o range medio.',
+    timeframes: ['1d'],
+    config: {
+      direction: 'long',
+      version: 1,
+      warmup: 60,
+      params: { period: 20, bbMult: 2, kcMult: 1.5, volMult: 1.3, volPeriod: 20, stopAtrMult: 2, targetRR: 2.5 },
+      indicatorsUsed: ['BB_UPPER', 'BB_LOWER', 'KELTNER_UPPER', 'KELTNER_LOWER', 'VOLUME_SMA', 'ATR'],
+      entry: {
+        kind: 'group',
+        logic: 'AND',
+        conditions: [
+          {
+            kind: 'compare',
+            op: '<',
+            left: indicator('BB_UPPER', { period: p('period'), mult: p('bbMult') }, 1),
+            right: indicator('KELTNER_UPPER', { period: p('period'), mult: p('kcMult') }, 1),
+            label: 'Bollinger comprimida dentro do Keltner (topo)',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: indicator('BB_LOWER', { period: p('period'), mult: p('bbMult') }, 1),
+            right: indicator('KELTNER_LOWER', { period: p('period'), mult: p('kcMult') }, 1),
+            label: 'Bollinger comprimida dentro do Keltner (fundo)',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('volume'),
+            right: expr('*', param('volMult'), indicator('VOLUME_SMA', { period: p('volPeriod') })),
+            label: 'Volume acima da media',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: indicator('BB_UPPER', { period: p('period'), mult: p('bbMult') }),
+            label: 'Rompeu a banda superior de Bollinger',
+            role: 'trigger',
+          },
+        ],
+      },
+      levels: {
+        entry: price('close'),
+        stop: expr('-', price('close'), expr('*', param('stopAtrMult'), indicator('ATR', { period: p('period') }))),
+        target: riskMultipleTarget('targetRR'),
+        trigger: indicator('BB_UPPER', { period: p('period'), mult: p('bbMult') }),
+      },
+    },
+  },
+  {
+    slug: 'high-52w',
+    name: 'Maxima 52 Semanas',
+    description:
+      'Momentum de maxima anual (George & Hwang, 2004): rompimento da maxima de 52 semanas com volume e momentum semestral positivo. Continuidade em ~68% dos rompimentos historicamente.',
+    timeframes: ['1d'],
+    config: {
+      direction: 'long',
+      version: 1,
+      warmup: 270,
+      params: { highLookback: 250, rocPeriod: 125, volPeriod: 20, atrPeriod: 14, stopAtrMult: 2.5, targetRR: 3 },
+      indicatorsUsed: ['HIGHEST_HIGH', 'ROC', 'VOLUME_SMA', 'ATR'],
+      entry: {
+        kind: 'group',
+        logic: 'AND',
+        conditions: [
+          {
+            kind: 'compare',
+            op: '>',
+            left: indicator('ROC', { period: p('rocPeriod') }),
+            right: value(0),
+            label: 'Momentum semestral positivo',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('volume'),
+            right: indicator('VOLUME_SMA', { period: p('volPeriod') }),
+            label: 'Volume acima da media',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: indicator('HIGHEST_HIGH', { period: p('highLookback') }, 1),
+            label: 'Fechou acima da maxima de 52 semanas',
+            role: 'trigger',
+          },
+        ],
+      },
+      levels: {
+        entry: price('close'),
+        stop: expr('-', price('close'), expr('*', param('stopAtrMult'), indicator('ATR', { period: p('atrPeriod') }))),
+        target: riskMultipleTarget('targetRR'),
+        trigger: indicator('HIGHEST_HIGH', { period: p('highLookback') }, 1),
+      },
+    },
+  },
+  {
+    slug: 'stoch-pullback',
+    name: 'Estocastico Pullback',
+    description:
+      'Correcao em tendencia de alta: estocastico lento sai da zona de sobrevenda (cruza acima de 20) com media de 50 ascendente.',
+    timeframes: ['1d', '1wk'],
+    config: {
+      direction: 'long',
+      version: 1,
+      warmup: 80,
+      params: { kPeriod: 14, kSmooth: 3, oversold: 20, overbought: 80, maPeriod: 50, slopeLookback: 5, stopLookback: 7, targetRR: 2 },
+      indicatorsUsed: ['STOCH_K', 'EMA', 'LOWEST_LOW'],
+      entry: {
+        kind: 'group',
+        logic: 'AND',
+        conditions: [
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: indicator('EMA', { period: p('maPeriod') }),
+            label: 'Preco acima da MM50',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: indicator('EMA', { period: p('maPeriod') }),
+            right: indicator('EMA', { period: p('maPeriod') }, 5),
+            label: 'MM50 ascendente',
+            role: 'filter',
+          },
+          {
+            kind: 'cross',
+            direction: 'above',
+            left: indicator('STOCH_K', { kPeriod: p('kPeriod'), kSmooth: p('kSmooth') }),
+            right: param('oversold'),
+            label: 'Estocastico saiu da sobrevenda',
+            role: 'trigger',
+          },
+        ],
+      },
+      exit: {
+        kind: 'compare',
+        op: '>=',
+        left: indicator('STOCH_K', { kPeriod: p('kPeriod'), kSmooth: p('kSmooth') }),
+        right: param('overbought'),
+        label: 'Estocastico em sobrecompra',
+      },
+      levels: {
+        entry: price('close'),
+        stop: indicator('LOWEST_LOW', { period: p('stopLookback') }),
+        target: riskMultipleTarget('targetRR'),
+      },
+    },
+  },
+  {
+    slug: 'gap-reversal',
+    name: 'Gap de Panico',
+    description:
+      'Abertura com gap de baixa forte em tendencia de alta que reverte e fecha acima da abertura; alvo no fechamento do gap.',
+    timeframes: ['1d'],
+    config: {
+      direction: 'long',
+      version: 1,
+      warmup: 210,
+      params: { gapFactor: 0.98, trendPeriod: 200, stopBuffer: 0.99, atrPeriod: 14 },
+      indicatorsUsed: ['SMA', 'ATR'],
+      entry: {
+        kind: 'group',
+        logic: 'AND',
+        conditions: [
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: indicator('SMA', { period: p('trendPeriod') }),
+            label: 'Preco acima da MM200',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '<',
+            left: price('open'),
+            right: expr('*', price('close', 1), param('gapFactor')),
+            label: 'Abriu com gap de baixa (> 2%)',
+            role: 'filter',
+          },
+          {
+            kind: 'compare',
+            op: '>',
+            left: price('close'),
+            right: price('open'),
+            label: 'Reverteu e fechou acima da abertura',
+            role: 'trigger',
+          },
+        ],
+      },
+      levels: {
+        entry: price('close'),
+        stop: expr('*', price('low'), param('stopBuffer')),
+        target: price('close', 1),
       },
     },
   },

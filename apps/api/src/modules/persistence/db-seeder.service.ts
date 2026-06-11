@@ -29,11 +29,19 @@ export class DbSeederService implements OnApplicationBootstrap {
       for (const def of SYSTEM_STRATEGIES) {
         const existing = await this.prisma.strategy.findUnique({ where: { slug: def.slug } });
         if (existing) {
-          // Preserva `config` (e portanto os params ajustados pelo usuario);
-          // atualiza apenas os metadados de exibicao.
+          // Preserva `config` (e portanto os params ajustados pelo usuario),
+          // EXCETO quando a versao da definicao mudou: ai as regras novas
+          // substituem a config armazenada.
+          const storedVersion = (existing.config as { version?: number })?.version ?? 1;
+          const defVersion = def.config.version ?? 1;
           await this.prisma.strategy.update({
             where: { slug: def.slug },
-            data: { name: def.name, description: def.description, timeframes: def.timeframes },
+            data: {
+              name: def.name,
+              description: def.description,
+              timeframes: def.timeframes,
+              ...(storedVersion !== defVersion ? { config: def.config as object } : {}),
+            },
           });
         } else {
           await this.prisma.strategy.create({

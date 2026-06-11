@@ -65,6 +65,8 @@ export function runBacktest(
         closeTrade(i, position.target, 'target');
       } else if (config.exit && ctx.evaluateCondition(config.exit, i)) {
         closeTrade(i, candle.close, 'exit_rule');
+      } else if (config.maxBars && i - position.entryIndex >= config.maxBars) {
+        closeTrade(i, candle.close, 'time');
       }
     }
 
