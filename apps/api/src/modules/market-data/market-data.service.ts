@@ -7,7 +7,10 @@ import { CacheService } from '../cache/cache.service';
 import { MARKET_DATA_PROVIDER, MarketDataProvider, Quote } from './provider.interface';
 
 const QUOTE_TTL = 60; // 1 min
-const CANDLES_TTL = 300; // 5 min (candles diarios mudam pouco intraday)
+const CANDLES_TTL = 900; // 15 min (candles diarios mudam pouco intraday)
+// Copia de seguranca da ultima resposta boa: servida quando o provedor
+// externo falha (rate limit, bloqueio de IP, instabilidade)
+const STALE_TTL = 72 * 3600;
 
 @Injectable()
 export class MarketDataService {
@@ -16,14 +19,29 @@ export class MarketDataService {
     private readonly cache: CacheService,
   ) {}
 
+  // Busca com fallback: sucesso alimenta a copia stale; falha serve a stale
+  private async resilient<T>(key: string, ttl: number, factory: () => Promise<T>): Promise<T> {
+    return this.cache.getOrSet(key, ttl, async () => {
+      try {
+        const fresh = await factory();
+        await this.cache.set(`stale:${key}`, fresh, STALE_TTL);
+        return fresh;
+      } catch (err) {
+        const stale = await this.cache.get<T>(`stale:${key}`);
+        if (stale !== null) return stale;
+        throw err;
+      }
+    });
+  }
+
   async getQuote(ticker: string): Promise<Quote> {
     const key = `quote:${ticker.toUpperCase()}`;
-    return this.cache.getOrSet(key, QUOTE_TTL, () => this.provider.getQuote(ticker));
+    return this.resilient(key, QUOTE_TTL, () => this.provider.getQuote(ticker));
   }
 
   async getCandles(ticker: string, timeframe: Timeframe, rangeDays: number): Promise<Candle[]> {
     const key = `candles:${ticker.toUpperCase()}:${timeframe}:${rangeDays}`;
-    return this.cache.getOrSet(key, CANDLES_TTL, async () => {
+    return this.resilient(key, CANDLES_TTL, async () => {
       const daily = await this.provider.getDailyCandles(ticker, rangeDays);
       return timeframe === '1wk' ? aggregateWeekly(daily) : daily;
     });

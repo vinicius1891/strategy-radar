@@ -46,6 +46,9 @@ interface YahooChartResult {
 export class YahooProvider implements MarketDataProvider {
   private readonly logger = new Logger(YahooProvider.name);
   private cookie: string | null = null;
+  // Proxy opcional (ex.: Cloudflare Worker) para contornar bloqueio de IPs
+  // de datacenter pelo Yahoo. Ver infra/cloudflare-yahoo-proxy.js
+  private readonly proxyBase = (process.env.YAHOO_PROXY_URL ?? '').replace(/\/+$/, '');
 
   // PETR4/BOVA11/B3SA3 etc. (4 caracteres iniciados por letra + 1-2 digitos)
   // sao B3 e precisam de ".SA"; simbolos ja qualificados (AAPL, PETR4.SA,
@@ -81,11 +84,18 @@ export class YahooProvider implements MarketDataProvider {
     const path = `/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
     let lastDetail = 'sem resposta';
 
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const host = HOSTS[attempt % HOSTS.length];
+    // Com proxy configurado ele e a primeira opcao; os hosts diretos do
+    // Yahoo continuam como fallback
+    const bases = this.proxyBase
+      ? [this.proxyBase, ...HOSTS.map((h) => `https://${h}`)]
+      : HOSTS.map((h) => `https://${h}`);
+
+    for (let attempt = 0; attempt < Math.max(4, bases.length); attempt++) {
+      const base = bases[attempt % bases.length];
+      const host = base.replace(/^https?:\/\//, '');
       let res: Response;
       try {
-        res = await fetch(`https://${host}${path}`, { headers: this.headers() });
+        res = await fetch(`${base}${path}`, { headers: this.headers() });
       } catch (err) {
         const cause = (err as { cause?: { code?: string } }).cause?.code ?? '';
         lastDetail = `falha de rede em ${host}: ${(err as Error).message} ${cause}`.trim();
