@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #0b0f17;
+  --color-panel: #111827;
+  --color-panel-2: #1a2332;
+  --color-edge: #233047;
+  --color-accent: #38bdf8;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: #e5e7eb;
+}
+
+::selection {
+  background-color: rgba(56, 189, 248, 0.35);
+}

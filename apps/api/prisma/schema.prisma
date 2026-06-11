@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime      @default(now())
+  backtestRuns BacktestRun[]
+}
+
+model Asset {
+  id         String          @id @default(cuid())
+  ticker     String          @unique
+  name       String
+  exchange   String          @default("B3")
+  type       String          @default("stock")
+  currency   String          @default("BRL")
+  strategies AssetStrategy[]
+  backtests  BacktestRun[]
+}
+
+model Strategy {
+  id            String          @id @default(cuid())
+  slug          String          @unique
+  name          String
+  description   String
+  // Objeto de configuracao interpretado pelo motor de regras (condicoes, niveis, parametros)
+  config        Json
+  timeframes    String[]        @default(["1d"])
+  enabled       Boolean         @default(true)
+  isSystem      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  assets        AssetStrategy[]
+  backtests     BacktestRun[]
+}
+
+// Estrategias cadastradas por ativo. Se um ativo nao possui vinculos,
+// o radar usa todas as estrategias de sistema habilitadas como padrao.
+model AssetStrategy {
+  id         String   @id @default(cuid())
+  assetId    String
+  strategyId String
+  enabled    Boolean  @default(true)
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  strategy   Strategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, strategyId])
+}
+
+model BacktestRun {
+  id         String   @id @default(cuid())
+  userId     String?
+  strategyId String
+  assetId    String
+  timeframe  String
+  range      String
+  metrics    Json
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  strategy   Strategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
